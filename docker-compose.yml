@@ -1,0 +1,22 @@
+services:
+  short-generator:
+    build: .
+    container_name: paperbrief
+    restart: unless-stopped
+    # Mount spesifik file agar tidak perlu build ulang jika ada perubahan token/konfigurasi
+    volumes:
+      - ./output:/app/output
+      - ./.env:/app/.env
+      - ./client_secrets.json:/app/client_secrets.json
+      # Harap pastikan .youtube_token.json sudah di-generate secara lokal dulu 
+      - ./.youtube_token.json:/app/.youtube_token.json
+      
+    # Opsional: Buka komentar di bawah ini jika Anda menginstall Nvidia Container Toolkit 
+    # di Server Ubuntu Anda agar bot bisa nge-render video GPU dengan `--device cuda`.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu, video]

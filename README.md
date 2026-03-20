@@ -80,72 +80,34 @@ python scheduler.py --run-once --device cuda
 
 ---
 
-## ☁️ Server Deployment (Ubuntu / Systemd)
+## 🐳 Server Deployment (Docker Compose)
 
-To make `scheduler.py` run continuously in the background on an Ubuntu Server and start automatically when the server reboots, the industry-standard approach is to use `systemd`.
+Running this bot on an Ubuntu server is completely hassle-free with Docker. It bypasses complex `venv` setups (PEP 668 issues) and automatically packs `ffmpeg` and required fonts in one clean package.
 
-### Step 1: Transfer Files to the Server
-Upload your entire project to the server. 
-**Crucial:** Ensure you also upload the `.youtube_token.json` that you generated previously on your local computer so the server doesn't get blocked by browser verification.
-
-### Step 2: Create a Systemd Service File
-Open your server terminal and create a new service file:
+### Step 1: Install Docker
+If you haven't installed Docker on your server, do it first:
 ```bash
-sudo nano /etc/systemd/system/paperbrief.service
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
 ```
 
-### Step 3: Configure the Service
-Paste the following configuration into the file. **Make sure to change `User`, `WorkingDirectory`, and `ExecStart`** to match your server's actual setup:
+### Step 2: Transfer Files
+Ensure you've uploaded your project folder to the server. 
+**Crucial Items:** Ensure `.env`, `client_secrets.json`, and the previously generated `.youtube_token.json` are present inside the folder.
 
-```ini
-[Unit]
-Description=PaperBrief YouTube Auto-Uploader Daemon
-After=network.target
-
-[Service]
-Type=simple
-# Ubah dengan username server Anda (misal: ubuntu atau root)
-User=ubuntu
-
-# Ubah sesuai dengan path direktori project Anda disimpan di server
-WorkingDirectory=/home/ubuntu/ShortGenerator
-
-# Ubah path ke binary python Anda. Sangat disarankan merujuk ke venv jika ada.
-ExecStart=/usr/bin/python3 scheduler.py
-
-# Script akan otomatis restart dalam 10 detik jika mengalami crash
-Restart=always
-RestartSec=10
-
-# Tambahkan logging environment Variables jika perlu
-Environment=PYTHONUNBUFFERED=1
-
-[Install]
-WantedBy=multi-user.target
-```
-*Save and exit (Ctrl+O, Enter, Ctrl+X).*
-
-### Step 4: Enable and Start the Service
-Reload the systemd daemon so it recognizes your new service:
+### Step 3: Start the Bot
+Run the Docker Compose detached daemon:
 ```bash
-sudo systemctl daemon-reload
+sudo docker compose up -d
 ```
 
-Start the service running right now:
+### Checking Logs
+Watch the scheduler working seamlessly in the background:
 ```bash
-sudo systemctl start paperbrief.service
+sudo docker compose logs -f
 ```
 
-**Enable the service so it runs automatically every time the server boots:**
-```bash
-sudo systemctl enable paperbrief.service
-```
-
-### Step 5: Check Logs
-You can monitor the bot running in the background live by checking the service logs at any time:
-```bash
-sudo journalctl -u paperbrief.service -f
-```
+*(Note for NVENC/GPU users: If you want blazing fast encoding in Docker, make sure you've installed the `Nvidia Container Toolkit` on your server and uncommented the `deploy` block in `docker-compose.yml`.)*
 
 ---
 
