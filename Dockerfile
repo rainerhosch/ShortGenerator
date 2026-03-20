@@ -21,4 +21,4 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 
 # Perintah default ketika container di jalankan
-CMD ["python", "scheduler.py"]
+CMD ["python", "scheduler.py", "--lang", "EN"]
