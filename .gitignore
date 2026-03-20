@@ -1,0 +1,17 @@
+# Environment & secrets
+.env
+__pycache__/
+*.pyc
+client_secret*.json
+.youtube_token.json
+client_secret.json
+client_secret*.json
+# Output artifacts
+output/
+
+# OS / IDE
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store

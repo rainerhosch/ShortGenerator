@@ -1,0 +1,32 @@
+# PaperBrief - Research Paper to YouTube Shorts
+# Core
+python-dotenv>=1.0.0
+tenacity>=8.2.0
+
+# Data Acquisition
+arxiv>=2.1.0
+PyMuPDF>=1.24.0
+
+# AI / LLM
+google-genai>=1.0.0
+httpx>=0.27.0
+
+# Audio
+elevenlabs>=1.0.0
+gTTS>=2.5.0
+edge-tts>=0.4.5
+
+# Visual & LaTeX
+openai>=1.30.0
+Pillow>=10.0.0
+matplotlib>=3.8.0
+
+# Video Assembly
+moviepy>=2.0.0
+
+# Scheduler
+schedule>=1.2.0
+
+# YouTube Upload (OAuth 2.0)
+google-api-python-client>=2.100.0
+google-auth-oauthlib>=1.2.0
