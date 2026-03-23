@@ -382,9 +382,10 @@ def process_paper(paper_data: dict, dry_run: bool = False,
 
         pdf_path = paper_data.get("pdf_path")
         if pdf_path and Path(pdf_path).exists():
-            # Primary: use actual PDF page screenshots
+            # Primary: Mixed Assets (AI Hook + PDF Insight & Impact)
+            visual_prompts = script.get("visual_prompts", {})
             image_paths = visual_engine.generate_images_from_pdf(
-                Path(pdf_path), image_dir
+                Path(pdf_path), image_dir, visual_prompts
             )
         else:
             # Fallback: use AI-generated or placeholder images

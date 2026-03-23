@@ -57,7 +57,9 @@ OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3-super-120b-a
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")  # Default
-ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"
+ELEVENLABS_MODEL_ID = os.getenv("ELEVENLABS_MODEL_ID", "eleven_monolingual_v1")
+
+FREEPIK_API_KEY = os.getenv("FREEPIK_API_KEY", "")
 
 # ── arXiv Defaults ───────────────────────────────────────────────────────────
 DEFAULT_CATEGORY = "random"
@@ -93,11 +95,17 @@ ARXIV_CATEGORIES = [
     "cs.SD", "cs.SE", "cs.SI", "cs.SY",
     # Mathematics (all sub-categories)
     "math.AC", "math.AG", "math.AP", "math.AT", "math.CA",
+    "cs.AI", "cs.AR", "cs.CC", "cs.CE", "cs.CG", "cs.CL",
     "math.CO", "math.CT", "math.CV", "math.DG", "math.DS",
+    "cs.CR", "cs.CV", "cs.CY", "cs.DB", "cs.DC", "cs.DL",
     "math.FA", "math.GM", "math.GN", "math.GR", "math.GT",
+    "cs.DM", "cs.DS", "cs.ET", "cs.FL", "cs.GL", "cs.GR",
     "math.HO", "math.IT", "math.KT", "math.LO", "math.MG",
+    "cs.GT", "cs.HC", "cs.IR", "cs.IT", "cs.LG", "cs.LO",
     "math.MP", "math.NA", "math.NT", "math.OA", "math.OC",
+    "cs.MA", "cs.MM", "cs.MS", "cs.NA", "cs.NE", "cs.NI",
     "math.PR", "math.QA", "math.RA", "math.RT", "math.SG",
+    "cs.OH", "cs.OS", "cs.PF", "cs.PL", "cs.RO", "cs.SC",
     "math.SP", "math.ST",
 ]
 

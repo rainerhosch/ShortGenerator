@@ -252,41 +252,155 @@ def resize_for_vertical(image_path: Path, output_path: Path = None) -> Path:
 #  MAIN ENTRY POINTS
 # ═════════════════════════════════════════════════════════════════════════════
 
-def generate_images_from_pdf(pdf_path: Path, output_dir: Path) -> dict:
+def _freepik_generate(prompt: str, output_path: Path) -> Path:
+    """Generate an image using Freepik Mystic API (Async Polling)."""
+    import httpx
+    import time
+
+    if not config.FREEPIK_API_KEY:
+        raise ValueError("FREEPIK_API_KEY is not set.")
+
+    enhanced_prompt = (
+        f"A breathtaking, award-winning vertical cinematic composition. "
+        f"{prompt}. "
+        f"Hyper-detailed, trending on ArtStation, 8k resolution, photorealistic, dramatic lighting, volumetric rendering. "
+        f"Clear focal point. No text, no words, no watermarks, no logos."
+    )
+
+    payload = {
+        "prompt": enhanced_prompt,
+        "aspect_ratio": "social_story_9_16"
+        }
+    headers = {
+        "x-freepik-api-key": config.FREEPIK_API_KEY,
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+
+    try:
+        # Step 1: Submit the task
+        response = httpx.post("https://api.freepik.com/v1/ai/mystic", json=payload, headers=headers, timeout=60)
+        if response.status_code != 200:
+            logger.error(f"Freepik API submission returned {response.status_code}: {response.text}")
+        response.raise_for_status()
+        
+        data = response.json()
+        task_info = data.get("data", data)
+        
+        if "task_id" not in task_info:
+            raise ValueError(f"No task_id found in submission response: {data}")
+            
+        task_id = task_info["task_id"]
+        logger.info(f"Freepik AI task created: {task_id}. Waiting for completion...")
+
+        # Step 2: Poll for completion
+        max_attempts = 30
+        poll_url = f"https://api.freepik.com/v1/ai/mystic/{task_id}"
+        
+        for attempt in range(max_attempts):
+            time.sleep(10) # Wait between polls
+            
+            poll_resp = httpx.get(poll_url, headers=headers, timeout=30)
+            if poll_resp.status_code != 200:
+                logger.error(f"Freepik API polling returned {poll_resp.status_code}: {poll_resp.text}")
+            poll_resp.raise_for_status()
+            
+            poll_data = poll_resp.json()
+            task_status_info = poll_data.get("data", poll_data)
+            
+            status = task_status_info.get("status")
+            if status == "COMPLETED":
+                generated_list = task_status_info.get("generated", [])
+                if not generated_list:
+                    raise ValueError(f"Task completed but 'generated' list is empty: {poll_data}")
+                
+                image_url = generated_list[0]
+                img_response = httpx.get(image_url, timeout=60)
+                img_response.raise_for_status()
+                with open(output_path, "wb") as f:
+                    f.write(img_response.content)
+                logger.info(f"Freepik Mystic AI image saved to {output_path}")
+                return output_path
+                
+            elif status in ["FAILED", "ERROR"]:
+                raise ValueError(f"Freepik task failed with status {status}. Response: {poll_data}")
+            
+            logger.info(f"Freepik task {task_id} status: {status}. Waiting...")
+
+        raise TimeoutError(f"Freepik task {task_id} timed out after {max_attempts * 10} seconds.")
+
+    except Exception as e:
+        logger.error(f"Failed to fetch Freepik image: {repr(e)}")
+        raise e
+        
+    return output_path
+
+
+def generate_images_from_pdf(pdf_path: Path, output_dir: Path, visual_prompts: dict = None) -> dict:
     """
-    Generate video background images from PDF page screenshots.
-
-    This is the PRIMARY method — uses actual paper pages as backgrounds.
-    Pages are auto-selected: title page (hook), middle page (insight),
-    near-end page (impact).
-
-    Args:
-        pdf_path: Path to the paper PDF file
-        output_dir: Directory to save processed images
-
-    Returns:
-        Dict mapping segment names to image file paths.
+    Generate video background images using Mixed Assets strategy.
+    
+    Hook: Freepik Mystic AI image based on visual_prompts.
+    Insight & Impact: Actual PDF page screenshots.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
+    visual_prompts = visual_prompts or {}
 
-    # Extract raw PDF page images
-    raw_pages = extract_pdf_pages(pdf_path, output_dir)
-
-    if len(raw_pages) < 3:
-        logger.warning(f"Only extracted {len(raw_pages)} pages. Padding with duplicates.")
-        while len(raw_pages) < 3:
-            raw_pages.append(raw_pages[-1])
-
-    # Map segments to pages and process for video
-    segments = ["hook", "insight", "impact"]
     image_paths = {}
 
-    for seg_name, raw_path in zip(segments, raw_pages[:3]):
-        processed_path = output_dir / f"bg_{seg_name}.png"
-        _prepare_pdf_image_for_video(raw_path, processed_path)
-        image_paths[seg_name] = processed_path
+    # 1. Generate Hook using Freepik Mystic API
+    hook_img_path = output_dir / "bg_hook.png"
+    hook_prompt = visual_prompts.get("hook", "academic research visualization, abstract science")
+    
+    if config.FREEPIK_API_KEY:
+        try:
+            logger.info(f"🎨 Visuals: Generating Hook image via Freepik for prompt: {hook_prompt[:50]}...")
+            _freepik_generate(hook_prompt, hook_img_path)
+            resize_for_vertical(hook_img_path)
+            image_paths["hook"] = hook_img_path
+        except Exception as e:
+            logger.warning(f"Freepik AI failed for hook: {e}. Falling back to placeholder.")
+    else:
+        logger.info("FREEPIK_API_KEY not set. Using placeholder for Hook.")
+        
+    if "hook" not in image_paths:
+        _placeholder_image(hook_prompt, hook_img_path, segment_type="hook")
+        image_paths["hook"] = hook_img_path
 
-    logger.info(f"Generated {len(image_paths)} background images from PDF pages.")
+    # 2. Extract PDF pages for the rest
+    doc = fitz.open(str(pdf_path))
+    total_pages = len(doc)
+    doc.close()
+    
+    # Select pages: middle page for insight, near-end page for impact
+    insight_page = max(1, total_pages // 2)
+    impact_page = max(2, total_pages - 1)
+    if impact_page <= insight_page: 
+        impact_page = insight_page + 1
+
+    # Safe boundaries
+    insight_page = min(insight_page, max(0, total_pages - 1))
+    impact_page = min(impact_page, max(0, total_pages - 1))
+
+    # Extract exactly 2 pages
+    raw_pages = extract_pdf_pages(pdf_path, output_dir, page_indices=[insight_page, impact_page])
+    
+    # Pad if extraction failed somehow
+    while len(raw_pages) < 2:
+        raw_pages.append(raw_pages[-1] if raw_pages else hook_img_path)
+
+    # Process and map PDF images
+    for seg_name, raw_path in zip(["insight", "impact"], raw_pages[:2]):
+        processed_path = output_dir / f"bg_{seg_name}.png"
+        
+        # Avoid processing the hook fallback image twice if padding took it
+        if raw_path == hook_img_path:
+            image_paths[seg_name] = hook_img_path
+        else:
+            _prepare_pdf_image_for_video(raw_path, processed_path)
+            image_paths[seg_name] = processed_path
+
+    logger.info("🎨 Visuals: Successfully mixed 1 AI background (Hook) + 2 PDF backgrounds (Insight, Impact).")
     return image_paths
 
 

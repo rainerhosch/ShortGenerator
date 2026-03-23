@@ -17,25 +17,49 @@ logger = logging.getLogger("Scheduler")
 
 def job(lang_override=None):
     logger.info("⏰ Scheduler job started.")
-    
-    # Pick a random category
-    category = random.choice(config.ARXIV_CATEGORIES)
-    logger.info(f"🎲 Selected random category: {category}")
-    
     lang = lang_override or config.SCHEDULE_LANG
     
-    # Run batch processing for 1 paper (or based on config)
-    # The scraper already filters out processed papers based on history_db
-    results = run_batch(
-        category=category,
-        max_results=config.SCHEDULE_PAPERS_PER_RUN,
-        dry_run=False,
-        llm_provider=config.SCHEDULE_LLM_PROVIDER,
-        llm_model=config.SCHEDULE_LLM_MODEL,
-        tts_provider=config.SCHEDULE_TTS_PROVIDER,
-        lang=lang,
-    )
+    max_retries = 5
+    results = []
     
+    for attempt in range(max_retries):
+        # Pick a category
+        if config.DEFAULT_CATEGORY.lower() == "random":
+            category = random.choice(config.ARXIV_CATEGORIES)
+            logger.info(f"🎲 Selected random category: {category} (Attempt {attempt+1}/{max_retries})")
+        else:
+            category = config.DEFAULT_CATEGORY
+            logger.info(f"🎲 Selected fixed category: {category}")
+            
+        try:
+            # Run batch processing for papers
+            results = run_batch(
+                category=category,
+                max_results=config.SCHEDULE_PAPERS_PER_RUN,
+                dry_run=False,
+                llm_provider=config.SCHEDULE_LLM_PROVIDER,
+                llm_model=config.SCHEDULE_LLM_MODEL,
+                tts_provider=config.SCHEDULE_TTS_PROVIDER,
+                lang=lang,
+            )
+            
+            if results:
+                # Successfully generated at least one video, exit retry loop
+                break
+            else:
+                logger.warning(f"⚠ No suitable new papers generated for '{category}'.")
+                if config.DEFAULT_CATEGORY.lower() != "random":
+                    logger.error(f"❌ Fixed category '{category}' yielded no results. Aborting job.")
+                    break
+        except Exception as e:
+            logger.error(f"❌ Unexpected error in batch processing for {category}: {e}")
+            
+        logger.info("⏳ Waiting 5 seconds before retrying another category...")
+        time.sleep(5)
+    else:
+        logger.error(f"❌ Exhausted {max_retries} category retry attempts. Job aborted.")
+        return
+        
     for res in results:
         if res["status"] == "success":
             arxiv_id = res["arxiv_id"]

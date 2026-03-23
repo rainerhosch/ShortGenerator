@@ -109,7 +109,7 @@ OUTPUT FORMAT — respond with ONLY valid JSON, no markdown fencing:
   ],
   "impact": "The impact narration in {lang_name} (40-60s)",
   "visual_prompts": {{
-    "hook": "Description for hook background image (always in English)",
+    "hook": "Highly detailed, cinematic Midjourney-style image generation prompt for the hook background. Include lighting, atmosphere, and specific subjects related to the core topic. (always in English)",
     "insight": "Description for insight background image (always in English)",
     "impact": "Description for impact background image (always in English)"
   }},
