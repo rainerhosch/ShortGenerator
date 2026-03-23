@@ -1,0 +1,28 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+env.bak/
+venv.bak/
+
+# Environment / Secrets
+.env
+client_secret*.json
+.youtube_token.json
+
+# Local Output & Database Data
+output/
+history.db
+
+# IDEs
+.idea/
+.vscode/
