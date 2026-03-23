@@ -48,6 +48,17 @@ def job(lang_override=None):
                 title=res["title"],
                 arxiv_id=arxiv_id
             )
+            
+            # Storage cleanup: Erase the huge video resources automatically
+            if getattr(config, "CLEANUP_AFTER_UPLOAD", True):
+                import shutil
+                paper_dir = config.OUTPUT_DIR / arxiv_id
+                if paper_dir.exists():
+                    logger.info(f"🧹 Clean up: permanently deleting '{paper_dir}' to free up storage")
+                    try:
+                        shutil.rmtree(paper_dir)
+                    except Exception as e:
+                        logger.error(f"⚠ Failed to clean up {paper_dir}: {e}")
         else:
             logger.warning(f"⚠ Generation failed for {res.get('arxiv_id', 'unknown')}")
             

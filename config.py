@@ -79,6 +79,7 @@ SCHEDULE_LLM_PROVIDER = os.getenv("SCHEDULE_LLM_PROVIDER", "openrouter")
 SCHEDULE_LLM_MODEL = os.getenv("SCHEDULE_LLM_MODEL", "")
 SCHEDULE_TTS_PROVIDER = os.getenv("SCHEDULE_TTS_PROVIDER", "edge-tts")
 SCHEDULE_LANG = os.getenv("SCHEDULE_LANG", "EN")
+CLEANUP_AFTER_UPLOAD = os.getenv("CLEANUP_AFTER_UPLOAD", "true").lower() == "true"
 
 # ── arXiv Category Pool (random pick per scheduler run) ──────────────────────
 ARXIV_CATEGORIES = [
