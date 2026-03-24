@@ -151,7 +151,24 @@ def _upload_youtube(video_path: str, title: str, arxiv_id: str):
             if status:
                 logger.info(f"   Uploading... {int(status.progress() * 100)}%")
 
-        logger.info(f"   ✅ Uploaded to YouTube successfully! Video ID: {response.get('id')}")
+        video_id = response.get('id')
+        logger.info(f"   ✅ Uploaded to YouTube successfully! Video ID: {video_id}")
+        
+        # Attempt to set the Freepik AI Hook image as the Custom Thumbnail
+        # (Note: For YouTube Shorts, custom thumbnails may only show in desktop search results)
+        img_hook_path = os.path.join(video_dir, "images", "bg_hook.png")
+        if os.path.exists(img_hook_path):
+            try:
+                logger.info(f"   🖼️ Setting Freepik Hook image as YouTube Thumbnail...")
+                thumb_media = MediaFileUpload(img_hook_path, mimetype="image/png")
+                youtube.thumbnails().set(
+                    videoId=video_id,
+                    media_body=thumb_media
+                ).execute()
+                logger.info("   ✅ Thumbnail set successfully.")
+            except Exception as e:
+                logger.warning(f"   ⚠ Failed to set custom thumbnail: {e}")
+
         history_db.mark_uploaded(arxiv_id, "youtube")
 
     except Exception as e:

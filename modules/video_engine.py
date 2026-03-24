@@ -38,7 +38,7 @@ FPS = config.VIDEO_FPS
 # ═════════════════════════════════════════════════════════════════════════════
 
 def _create_subtitle_clips(text: str, start_time: float, duration: float,
-                           font_size: int = 58, words_per_group: int = 4,
+                           font_size: int = 110, words_per_group: int = 2,
                            y_position: float = 0.5) -> list:
     """
     Create dynamic word-group subtitle clips that appear sequentially
@@ -48,18 +48,18 @@ def _create_subtitle_clips(text: str, start_time: float, duration: float,
         text: Full narration text for this segment
         start_time: When this segment starts in the video (seconds)
         duration: Duration of this segment (seconds)
-        font_size: Font size for subtitles
+        font_size: Font size for subtitles (massively increased for Shorts)
         words_per_group: How many words to show at a time
         y_position: Vertical position (0.0=top, 1.0=bottom, 0.5=center)
 
     Returns:
-        List of MoviePy TextClip objects
+        List of MoviePy TextClip-like ImageClip objects with zoom animations
     """
     words = text.split()
     if not words:
         return []
 
-    # Split into groups
+    # Split into groups (kinetic pacing)
     groups = []
     for i in range(0, len(words), words_per_group):
         groups.append(" ".join(words[i:i + words_per_group]))
@@ -70,7 +70,7 @@ def _create_subtitle_clips(text: str, start_time: float, duration: float,
     for i, group_text in enumerate(groups):
         group_start = start_time + (i * time_per_group)
 
-        # Create text image with Pillow for better control
+        # Create localized stylized sub
         text_clip = _create_styled_text_clip(
             group_text,
             font_size=font_size,
@@ -87,12 +87,14 @@ def _create_subtitle_clips(text: str, start_time: float, duration: float,
 def _create_styled_text_clip(text: str, font_size: int, duration: float,
                               start: float, y_position: float) -> Optional[ImageClip]:
     """
-    Create a styled subtitle clip with background box using Pillow.
-    This gives us more control than MoviePy's TextClip.
+    Create a styled subtitle clip with bold black text, thick white stroke,
+    and a short pop-out zoom animation, utilizing Pillow for native rendering depth.
     """
     # Create temporary image to measure text size
-    padding_x, padding_y = 40, 20
-    max_text_width = W - 120  # Leave margin on sides
+    # Thick strokes need more padding!
+    stroke_w = int(font_size * 0.12)
+    padding_x, padding_y = 60 + stroke_w, 40 + stroke_w
+    max_text_width = W - 160  # Leave large horizontal margins
 
     # Try to load a nice font, fallback to default
     font = _get_font(font_size)
@@ -115,45 +117,51 @@ def _create_styled_text_clip(text: str, font_size: int, duration: float,
     if not line_heights:
         return None
 
-    line_spacing = 8
+    line_spacing = 15  # Positive spacing to prevent overlap with large thick strokes
     total_text_height = sum(line_heights) + line_spacing * (len(lines) - 1)
     max_line_width = max(line_widths)
 
-    # Create image with semi-transparent background
+    # Create image with fully transparent background (no basic rectangles!)
     img_w = max_line_width + padding_x * 2
-    img_h = total_text_height + padding_y * 2
+    img_h = max(0, total_text_height + padding_y * 2)
 
     img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # Draw rounded rectangle background
-    bg_color = (0, 0, 0, 180)
-    _draw_rounded_rect(draw, (0, 0, img_w, img_h), radius=16, fill=bg_color)
-
-    # Draw text lines (centered)
+    # Draw text lines (horizontally centered)
     y_offset = padding_y
     for i, line in enumerate(lines):
         bbox = draw.textbbox((0, 0), line, font=font)
         lw = bbox[2] - bbox[0]
         x = (img_w - lw) // 2
-        # White text with slight shadow
-        draw.text((x + 2, y_offset + 2), line, fill=(0, 0, 0, 120), font=font)
-        draw.text((x, y_offset), line, fill=(255, 255, 255, 255), font=font)
+        
+        # Modern Content Creator Style: Dark Text, Thick Bright Stroke
+        draw.text((x, y_offset), line, fill=(15, 15, 15, 255), font=font,
+                  stroke_width=stroke_w, stroke_fill=(255, 255, 255, 255))
+        
         y_offset += line_heights[i] + line_spacing
 
-    # Convert to numpy array for MoviePy
     img_array = np.array(img)
 
     clip = (
         ImageClip(img_array, transparent=True)
         .with_duration(duration)
         .with_start(start)
-        .with_position(("center", y_position, "relative" if isinstance(y_position, float) else None))
     )
+
+    # Apply Quadratic Pop-Zoom-Out animation
+    zoom_effect = lambda t: 1.35 - 0.35 * min(t / 0.15, 1.0)
+    try:
+        if hasattr(clip, "resized"):
+            clip = clip.resized(zoom_effect)
+        elif hasattr(clip, "resize"):
+            clip = clip.resize(zoom_effect)
+    except Exception as e:
+        logger.warning(f"Could not apply zoom effect on subtitles: {e}")
 
     # Position: center horizontally, at specified vertical position
     y_px = int(H * y_position) - img_h // 2
-    y_px = max(50, min(y_px, H - img_h - 50))
+    y_px = max(font_size, min(y_px, H - img_h - font_size))
     clip = clip.with_position(("center", y_px))
 
     return clip
