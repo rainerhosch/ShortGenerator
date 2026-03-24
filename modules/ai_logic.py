@@ -330,34 +330,47 @@ def generate_script(paper_data: dict, provider: str = "gemini",
     lang_name = LANGUAGE_CONFIGS.get(lang.upper(), LANGUAGE_CONFIGS["EN"])["name"]
     logger.info(f"🤖 Generating script with {provider} ({use_model}) in {lang_name}...")
 
-    # Try primary provider, fallback chain
-    try:
-        raw_response = _dispatch_llm(user_prompt, provider, model, system_prompt=system_prompt)
-    except (ValueError, httpx.HTTPStatusError, Exception) as e:
-        logger.warning(f"Primary provider ({provider}) failed: {e}. Trying fallback...")
+    # We will try the primary provider/model first, then fallbacks
+    # For openrouter, free models often hit hard output limits, so we add intra-provider model fallbacks
+    attempts = [
+        {"provider": provider, "model": use_model}
+    ]
+    
+    # Add cross-provider fallbacks
+    for p in ["openrouter", "gemini", "openai"]:
+        if p != provider:
+            attempts.append({"provider": p, "model": DEFAULT_MODELS.get(p)})
+            
+    # Add specific openrouter fallbacks just in case main openrouter fails due to token limits
+    if provider == "openrouter":
+        attempts.extend([
+            {"provider": "openrouter", "model": "google/gemma-3-27b-it:free"},
+            {"provider": "openrouter", "model": "meta-llama/llama-3.3-70b-instruct:free"},
+            {"provider": "openrouter", "model": "mistralai/mistral-nemo:free"}
+        ])
 
-        # Determine fallback order
-        fallback_order = [p for p in ["gemini", "openai", "openrouter"] if p != provider]
+    script = None
+    last_err = None
 
-        raw_response = None
-        for fallback in fallback_order:
-            try:
-                raw_response = _dispatch_llm(user_prompt, fallback, system_prompt=system_prompt)
-                logger.info(f"  Fallback to {fallback} succeeded.")
-                break
-            except Exception as fb_err:
-                logger.warning(f"  Fallback {fallback} also failed: {fb_err}")
-                continue
+    for attempt in attempts:
+        attempt_prov = attempt["provider"]
+        attempt_model = attempt["model"]
+        
+        try:
+            raw_response = _dispatch_llm(user_prompt, attempt_prov, attempt_model, system_prompt=system_prompt)
+            script = _parse_script_json(raw_response)
+            
+            # Combine full narration text for TTS
+            script["full_narration"] = f"{script['hook']} {script['insight']} {script['impact']}"
+            logger.info(f"✅ Success with {attempt_prov} ({attempt_model}). Generated script: '{script.get('title_short', 'N/A')}' ({len(script['full_narration'].split())} words)")
+            break
+            
+        except Exception as e:
+            last_err = e
+            logger.warning(f"⚠ Attempt with {attempt_prov} ({attempt_model}) failed: {e}")
+            continue
 
-        if raw_response is None:
-            raise RuntimeError(f"All LLM providers failed. Last error: {e}")
-
-    script = _parse_script_json(raw_response)
-
-    # Combine full narration text for TTS
-    script["full_narration"] = f"{script['hook']} {script['insight']} {script['impact']}"
-
-    logger.info(f"Generated script: '{script.get('title_short', 'N/A')}' "
-                f"({len(script['full_narration'].split())} words)")
+    if not script:
+        raise RuntimeError(f"All LLM providers and fallback models failed. Last error: {last_err}")
 
     return script
