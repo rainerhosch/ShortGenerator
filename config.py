@@ -75,7 +75,7 @@ MAX_RETRIES = 3
 RETRY_WAIT_SECONDS = 2
 
 # ── Scheduler Settings ───────────────────────────────────────────────────────
-SCHEDULE_TIMES = os.getenv("SCHEDULE_TIMES", "08:00,20:00").split(",")
+SCHEDULE_TIMES = os.getenv("SCHEDULE_TIMES", "07:00,12:00,18:00,01:30").split(",")
 SCHEDULE_PAPERS_PER_RUN = int(os.getenv("SCHEDULE_PAPERS_PER_RUN", "1"))
 SCHEDULE_LLM_PROVIDER = os.getenv("SCHEDULE_LLM_PROVIDER", "openrouter")
 SCHEDULE_LLM_MODEL = os.getenv("SCHEDULE_LLM_MODEL", "")
