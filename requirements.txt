@@ -31,7 +31,7 @@ schedule>=1.2.0
 google-api-python-client>=2.100.0
 google-auth-oauthlib>=1.2.0
 
-## Document AI / RAG
+## Document AI / RAG for future use
 #langchain>=0.2.13
 #langchain-community>=0.2.12
 #faiss-cpu>=1.8.0
