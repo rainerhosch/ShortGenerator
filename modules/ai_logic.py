@@ -128,8 +128,9 @@ def _build_user_prompt(paper_data: dict) -> str:
 
     # Fallback to abstract & conclusion
     conclusion = paper_data.get("conclusion", "")
-    if len(conclusion) > 2000:
-        conclusion = conclusion[:2000] + "..."
+    # Shrink conclusion input length to 1500 to relieve OpenRouter Context Window limits (HTTP 400)
+    if len(conclusion) > 1500:
+        conclusion = conclusion[:1500] + "..."
 
     input_text = f"PAPER TITLE: {paper_data['title']}\nAUTHORS: {authors_str}\n\nABSTRACT:\n{paper_data['abstract']}\n\nCONCLUSION:\n{conclusion}"
 
@@ -156,7 +157,7 @@ def _call_gemini(prompt: str, model: str = "gemini-2.5-flash",
         contents=system_prompt + "\n\n" + prompt,
         config=types.GenerateContentConfig(
             temperature=0.8,
-            max_output_tokens=2048,
+            max_output_tokens=8192,
         ),
     )
 
@@ -183,7 +184,7 @@ def _call_openai(prompt: str, model: str = "gpt-4o-mini",
             {"role": "user", "content": prompt},
         ],
         temperature=0.8,
-        max_tokens=2048,
+        max_tokens=4096,
     )
 
     return response.choices[0].message.content
@@ -211,7 +212,7 @@ def _call_openrouter(prompt: str, model: str = config.OPENROUTER_MODEL,
             {"role": "user", "content": prompt},
         ],
         "temperature": 0.8,
-        "max_tokens": 2048,
+        "max_tokens": 4096,
     }
 
     logger.info(f"  OpenRouter model: {model}")
@@ -326,7 +327,7 @@ def generate_script(paper_data: dict, provider: str = "gemini",
     ]
     
     # Add cross-provider fallbacks
-    for p in ["openrouter", "gemini", "openai"]:
+    for p in ["gemini","openrouter", "openai"]:
         if p != provider:
             attempts.append({"provider": p, "model": DEFAULT_MODELS.get(p)})
             

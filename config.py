@@ -77,8 +77,8 @@ RETRY_WAIT_SECONDS = 2
 # ── Scheduler Settings ───────────────────────────────────────────────────────
 SCHEDULE_TIMES = os.getenv("SCHEDULE_TIMES", "07:00,12:00,18:00,01:30").split(",")
 SCHEDULE_PAPERS_PER_RUN = int(os.getenv("SCHEDULE_PAPERS_PER_RUN", "1"))
-SCHEDULE_LLM_PROVIDER = os.getenv("SCHEDULE_LLM_PROVIDER", "openrouter")
-SCHEDULE_LLM_MODEL = os.getenv("SCHEDULE_LLM_MODEL", "")
+SCHEDULE_LLM_PROVIDER = os.getenv("SCHEDULE_LLM_PROVIDER", "gemini")
+SCHEDULE_LLM_MODEL = os.getenv("SCHEDULE_LLM_MODEL", "gemini-2.5-flash")
 SCHEDULE_TTS_PROVIDER = os.getenv("SCHEDULE_TTS_PROVIDER", "edge-tts")
 SCHEDULE_LANG = os.getenv("SCHEDULE_LANG", "EN")
 CLEANUP_AFTER_UPLOAD = os.getenv("CLEANUP_AFTER_UPLOAD", "true").lower() == "true"

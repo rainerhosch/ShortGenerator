@@ -54,8 +54,8 @@ def job(lang_override=None):
         except Exception as e:
             logger.error(f"❌ Unexpected error in batch processing for {category}: {e}")
             
-        logger.info("⏳ Waiting 5 seconds before retrying another category...")
-        time.sleep(5)
+        logger.info("⏳ Waiting 30 seconds before retrying another category (preventing API Rate Limits)...")
+        time.sleep(30)
     else:
         logger.error(f"❌ Exhausted {max_retries} category retry attempts. Job aborted.")
         return

@@ -5,6 +5,7 @@ Fetches research papers from arXiv and extracts key sections (Abstract, Conclusi
 
 import logging
 import re
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -37,7 +38,7 @@ def fetch_papers(category: str = config.DEFAULT_CATEGORY,
     """
     logger.info(f"Fetching up to {max_results} papers from arXiv category: {category}")
 
-    client = arxiv.Client()
+    client = arxiv.Client(page_size=min(max_results, 10), delay_seconds=10.0, num_retries=3)
     search = arxiv.Search(
         query=f"cat:{category}",
         max_results=max_results,
@@ -189,7 +190,8 @@ def get_paper_data(category: str = config.DEFAULT_CATEGORY,
         List of paper dicts, each enriched with 'conclusion' and 'pdf_path' keys.
     """
     # Fetch a larger pool so we don't run out if many recent papers are already filtered out
-    fetch_limit = max(50, max_results * 5)
+    # Constrain to absolute max 10 to avoid ArXiv 429 rate limit errors
+    fetch_limit = min(10, max(5, max_results * 2))
     papers = fetch_papers(category, fetch_limit)
 
     # Filter out already-processed papers
@@ -217,6 +219,8 @@ def get_paper_data(category: str = config.DEFAULT_CATEGORY,
 
             if conclusion is None:
                 logger.warning(f"Skipping paper {paper['arxiv_id']}: could not extract conclusion.")
+                # Garbage collector: Clean up orphaned PDF dir since it's skipped
+                shutil.rmtree(paper_dir, ignore_errors=True)
                 continue
 
             paper["conclusion"] = conclusion
@@ -224,7 +228,9 @@ def get_paper_data(category: str = config.DEFAULT_CATEGORY,
             enriched.append(paper)
 
         except Exception as e:
-            logger.error(f"Error processing paper {paper['arxiv_id']}: {e}", exc_info=True)
+            logger.error(f"Error processing paper {paper.get('arxiv_id', 'unknown')}: {e}", exc_info=True)
+            if 'paper_dir' in locals() and paper_dir.exists():
+                shutil.rmtree(paper_dir, ignore_errors=True)
             continue
 
     logger.info(f"Successfully processed {len(enriched)}/{len(papers)} papers.")
