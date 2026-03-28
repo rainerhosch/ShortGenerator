@@ -92,8 +92,10 @@ def _select_llm_provider() -> tuple[str, str]:
     # Example models to show the user
     model_examples = {
         "gemini": [
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-lite",
+            "gemma-3-27b",
+            "gemma-3-1b",
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
             "gemini-2.5-pro-preview-05-06",
         ],
         "openai": [
@@ -102,11 +104,12 @@ def _select_llm_provider() -> tuple[str, str]:
             "gpt-4.1-nano",
         ],
         "openrouter": [
-            "nvidia/nemotron-3-super-120b-a12b:free",
+            "google/gemma-3-27b-it:free",
             "minimax/minimax-m2.5:free",
             "stepfun/step-3.5-flash:free",
             "openai/gpt-oss-120b:free",
             "google/gemma-3n-e4b-it:free",
+            "nvidia/nemotron-3-super-120b-a12b:free",
             # "google/gemini-2.0-flash-001",
             # "xiaomi/mimo-v2-flash",
             # "deepseek/deepseek-chat-v3-0324",

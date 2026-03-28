@@ -146,7 +146,7 @@ Remember: Output ONLY valid JSON following the exact schema specified. Total nar
 
 # ── Gemini API ───────────────────────────────────────────────────────────────
 
-def _call_gemini(prompt: str, model: str = "gemini-2.0-flash",
+def _call_gemini(prompt: str, model: str = "gemma-3-27b",
                  system_prompt: str = "") -> str:
     """Call Google Gemini API and return raw text response."""
     if not config.GEMINI_API_KEY:
@@ -235,7 +235,7 @@ def _call_openrouter(prompt: str, model: str = config.OPENROUTER_MODEL,
 
 # Default models for each provider (used when user doesn't specify a model)
 DEFAULT_MODELS = {
-    "gemini": "gemini-2.0-flash",
+    "gemini": "gemma-3-27b",
     "openai": "gpt-4o-mini",
     "openrouter": config.OPENROUTER_MODEL,
 }
@@ -278,6 +278,9 @@ def _parse_script_json(raw_text: str) -> dict:
     Parse the LLM response into a structured script dict.
     Handles common issues like markdown code fences around JSON.
     """
+    if not raw_text:
+        raise ValueError("Received empty or null response from LLM (possibly blocked or rate-limited).")
+
     # Strip markdown code fences if present
     cleaned = raw_text.strip()
     cleaned = re.sub(r'^```(?:json)?\s*\n?', '', cleaned)
@@ -346,12 +349,14 @@ def generate_script(paper_data: dict, provider: str = "gemini",
         attempts.extend([
             {"provider": "openrouter", "model": "google/gemma-3-27b-it:free"},
             {"provider": "openrouter", "model": "meta-llama/llama-3.3-70b-instruct:free"},
-            {"provider": "openrouter", "model": "mistralai/mistral-nemo:free"}
+            {"provider": "openrouter", "model": "meta-llama/llama-3.1-8b-instruct:free"},
+            {"provider": "openrouter", "model": "microsoft/phi-3-mini-128k-instruct:free"}
         ])
 
     script = None
     last_err = None
 
+    import time
     for attempt in attempts:
         attempt_prov = attempt["provider"]
         attempt_model = attempt["model"]
@@ -368,6 +373,9 @@ def generate_script(paper_data: dict, provider: str = "gemini",
         except Exception as e:
             last_err = e
             logger.warning(f"⚠ Attempt with {attempt_prov} ({attempt_model}) failed: {e}")
+            if "gemini" not in attempt_prov and "openai" not in attempt_prov:
+                # Sleep briefly to avoid immediately triggering a 429 on the next OpenRouter fallback
+                time.sleep(3)
             continue
 
     if not script:
