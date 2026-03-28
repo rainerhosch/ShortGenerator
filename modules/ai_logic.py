@@ -1,6 +1,7 @@
 """
 PaperBrief — AI Orchestration Module
-Converts academic abstracts & conclusions into narration scripts using LLM APIs.
+PaperBrief — AI Logic Module
+Handles generating the narration script using various LLMs via LangChain RAG + custom dispatchers.
 Output follows the PaperBrief content structure:
   Hook (0-10s) → Insight (10-40s) → Impact (40-60s)
 
@@ -13,8 +14,11 @@ Supported providers:
 import json
 import logging
 import re
+from pathlib import Path
 from typing import Optional
 
+from pydantic import BaseModel, Field
+from langchain_core.output_parsers import JsonOutputParser
 from google import genai
 from google.genai import types
 import httpx
@@ -23,6 +27,38 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 import config
 
 logger = logging.getLogger(__name__)
+
+def retrieve_paper_context(pdf_path: str) -> str:
+    """Read full PDF, embed via HuggingFace, and retrieve most relevant semantic chunks."""
+    try:
+        from langchain_community.document_loaders import PyPDFLoader
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        from langchain_community.vectorstores import FAISS
+        from langchain_huggingface import HuggingFaceEmbeddings
+
+        logger.info(f"🔎 LangChain: Loading and analyzing entire PDF text: {pdf_path}")
+        loader = PyPDFLoader(pdf_path)
+        docs = loader.load()
+
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        splits = splitter.split_documents(docs)
+
+        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        vectorstore = FAISS.from_documents(splits, embeddings)
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+
+        query = "methodology, key findings, experimental results, real-world impact conclusion"
+        relevant_docs = retriever.invoke(query)
+
+        # Merge and strip excess whitespace to heavily reduce token footprint
+        context = " ".join(d.page_content for d in relevant_docs)
+        context = re.sub(r'\s+', ' ', context).strip()
+        
+        logger.info(f"✅ LangChain: Successfully extracted top semantic chunks ({len(context)} chars).")
+        return context
+    except Exception as e:
+        logger.error(f"❌ LangChain RAG failed: {e}. Falling back to basic abstract.")
+        return None
 
 # ── Language Configs ──────────────────────────────────────────────────────────
 
@@ -62,6 +98,16 @@ LANGUAGE_CONFIGS = {
 }
 
 
+class VideoScript(BaseModel):
+    hook: str = Field(description="The hook narration text (0-10s)")
+    insight: str = Field(description="The insight narration text (10-40s)")
+    insight_points: list[str] = Field(description="3 Key findings - short text overlay phrases")
+    impact: str = Field(description="The impact narration (40-60s)")
+    visual_prompts: dict = Field(description="Dictionary with keys 'hook', 'insight', 'impact' containing highly detailed, cinematic Midjourney-style image generation prompts. ALWAYS IN ENGLISH")
+    title_short: str = Field(description="A catchy 5-8 word title")
+    hashtags: list[str] = Field(description="3-5 relevant hashtags")
+
+
 def _build_system_prompt(lang: str = "EN") -> str:
     """Build the system prompt for the given language."""
     lang = lang.upper()
@@ -70,13 +116,17 @@ def _build_system_prompt(lang: str = "EN") -> str:
     hook_ex = " or ".join(lang_config["hook_examples"])
     impact_opener = lang_config["impact_opener"]
 
+    parser = JsonOutputParser(pydantic_object=VideoScript)
+    format_instructions = parser.get_format_instructions()
+
     return f"""You are a world-class Science Communicator who creates viral YouTube Shorts scripts.
 Your job is to transform dense academic papers into exciting, accessible 60-second narration scripts.
 
-CRITICAL: You MUST write the ENTIRE script in {lang_name}.
+CRITICAL: You MUST write the ENTIRE script (narrations, title) in {lang_name}, except for visual_prompts which MUST be in English.
 The paper source may be in English, but your output narration MUST be in {lang_name}.
 
 RULES:
+- TEXT TRANSFORMATION: Turn dense academic facts into a THRILLING, easy-to-understand STORY! Make it sound like an exciting discovery, not a boring lecture.
 - Write in {lang_name}, conversational tone — as if explaining to a smart friend.
 - Total word count MUST be 120–150 words (this maps to ~50-60 seconds of narration).
 - Use vivid analogies and concrete examples. NO jargon without explanation.
@@ -112,34 +162,29 @@ OUTPUT FORMAT — respond with ONLY valid JSON, no markdown fencing:
     "hook": "Highly detailed, cinematic Midjourney-style image generation prompt for the hook background. Include lighting, atmosphere, and specific subjects related to the core topic. (always in English)",
     "insight": "Description for insight background image (always in English)",
     "impact": "Description for impact background image (always in English)"
-  }},
-  "title_short": "A catchy 5-8 word title in {lang_name}",
-  "hashtags": ["#science", "#research", "#relevant_tag"]
-}}"""
+OUTPUT FORMAT:
+{format_instructions}
+"""
 
 
-def _build_user_prompt(paper_data: dict) -> str:
+def _build_user_prompt(paper_data: dict, rag_context: str = None) -> str:
     """Build the user-facing prompt with paper content."""
     authors_str = ", ".join(paper_data["authors"][:3])
     if len(paper_data["authors"]) > 3:
         authors_str += " et al."
 
-    # Truncate conclusion if too long
-    conclusion = paper_data.get("conclusion", "")
-    if len(conclusion) > 2000:
-        conclusion = conclusion[:2000] + "..."
+    if rag_context:
+        input_text = f"PAPER TITLE: {paper_data['title']}\nAUTHORS: {authors_str}\n\nKEY EXTRACTED CONTENTS FROM FULL PAPER:\n{rag_context}"
+    else:
+        # Fallback to abstract & conclusion
+        conclusion = paper_data.get("conclusion", "")
+        if len(conclusion) > 2000:
+            conclusion = conclusion[:2000] + "..."
+        input_text = f"PAPER TITLE: {paper_data['title']}\nAUTHORS: {authors_str}\n\nABSTRACT:\n{paper_data['abstract']}\n\nCONCLUSION:\n{conclusion}"
 
-    return f"""Transform this research paper into a 60-second YouTube Short script:
+    return f"""Transform this dense research paper into an EXCİTING 60-second YouTube Short storytelling script:
 
-PAPER TITLE: {paper_data['title']}
-AUTHORS: {authors_str}
-arXiv ID: {paper_data.get('arxiv_id', 'N/A')}
-
-ABSTRACT:
-{paper_data['abstract']}
-
-CONCLUSION/KEY FINDINGS:
-{conclusion}
+{input_text}
 
 Remember: Output ONLY valid JSON following the exact schema specified. Total narration ~120-150 words."""
 
@@ -275,29 +320,23 @@ def _dispatch_llm(prompt: str, provider: str, model: str = None,
 
 def _parse_script_json(raw_text: str) -> dict:
     """
-    Parse the LLM response into a structured script dict.
-    Handles common issues like markdown code fences around JSON.
+    Parse the LLM response into a structured script dict using LangChain JsonOutputParser.
     """
     if not raw_text:
         raise ValueError("Received empty or null response from LLM (possibly blocked or rate-limited).")
 
-    # Strip markdown code fences if present
-    cleaned = raw_text.strip()
-    cleaned = re.sub(r'^```(?:json)?\s*\n?', '', cleaned)
-    cleaned = re.sub(r'\n?```\s*$', '', cleaned)
-    cleaned = cleaned.strip()
-
+    parser = JsonOutputParser(pydantic_object=VideoScript)
     try:
-        script = json.loads(cleaned)
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON parse error: {e}\nRaw response:\n{raw_text[:500]}")
-        raise ValueError(f"LLM returned invalid JSON: {e}")
+        script = parser.parse(raw_text)
+    except Exception as e:
+        logger.error(f"LangChain JSON parse error: {e}\nRaw response:\n{raw_text[:500]}")
+        raise ValueError(f"LLM returned invalid JSON format: {e}")
 
-    # Validate required keys
-    required_keys = ["hook", "insight", "insight_points", "impact", "visual_prompts"]
-    missing = [k for k in required_keys if k not in script]
+    # Validate strictly to prevent silent "repairs" from LLM truncation
+    required_keys = ["hook", "insight", "insight_points", "impact", "visual_prompts", "title_short", "hashtags"]
+    missing = [k for k in required_keys if k not in script or not script[k]]
     if missing:
-        raise ValueError(f"Script JSON missing required keys: {missing}")
+        raise ValueError(f"Script JSON truncated/missing required keys: {missing}")
 
     return script
 
@@ -315,18 +354,14 @@ def generate_script(paper_data: dict, provider: str = "gemini",
                     model: str = None, lang: str = "EN") -> dict:
     """
     Generate a narration script from paper data using an LLM.
-
-    Args:
-        paper_data: Dict with keys: title, authors, abstract, conclusion
-        provider: "gemini", "openai", or "openrouter"
-        model: Specific model name (e.g. "gemini-2.0-flash", "gpt-4o-mini",
-               "xiaomi/mimo-v2-flash"). If None, uses provider default.
-        lang: Language code ("EN", "ID", "ES", "FR", etc.)
-
-    Returns:
-        Structured script dict with hook, insight, insight_points, impact, visual_prompts
     """
-    user_prompt = _build_user_prompt(paper_data)
+    # ── LangChain RAG Search ──
+    pdf_path = paper_data.get("pdf_path")
+    rag_context = None
+    if pdf_path and Path(pdf_path).exists():
+        rag_context = retrieve_paper_context(str(pdf_path))
+
+    user_prompt = _build_user_prompt(paper_data, rag_context)
     use_model = model or DEFAULT_MODELS.get(provider, "")
     system_prompt = _build_system_prompt(lang)
 
