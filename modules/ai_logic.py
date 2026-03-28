@@ -146,7 +146,7 @@ Remember: Output ONLY valid JSON following the exact schema specified. Total nar
 
 # ── Gemini API ───────────────────────────────────────────────────────────────
 
-def _call_gemini(prompt: str, model: str = "gemma-3-27b",
+def _call_gemini(prompt: str, model: str = "gemini-2.5-flash",
                  system_prompt: str = "") -> str:
     """Call Google Gemini API and return raw text response."""
     if not config.GEMINI_API_KEY:
@@ -235,7 +235,7 @@ def _call_openrouter(prompt: str, model: str = config.OPENROUTER_MODEL,
 
 # Default models for each provider (used when user doesn't specify a model)
 DEFAULT_MODELS = {
-    "gemini": "gemma-3-27b",
+    "gemini": "gemini-2.5-flash",
     "openai": "gpt-4o-mini",
     "openrouter": config.OPENROUTER_MODEL,
 }

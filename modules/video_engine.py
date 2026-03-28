@@ -43,18 +43,14 @@ def _create_subtitle_clips(text: str, start_time: float, duration: float,
     """
     Create dynamic word-group subtitle clips that appear sequentially
     over the given duration, simulating karaoke-style subtitles.
-
-    Args:
-        text: Full narration text for this segment
-        start_time: When this segment starts in the video (seconds)
-        duration: Duration of this segment (seconds)
-        font_size: Font size for subtitles (massively increased for Shorts)
-        words_per_group: How many words to show at a time
-        y_position: Vertical position (0.0=top, 1.0=bottom, 0.5=center)
-
-    Returns:
-        List of MoviePy TextClip-like ImageClip objects with zoom animations
+    Sync is smartly estimated based on word length and punctuation pauses.
     """
+    import re
+    # Clean text to prevent unrenderable boxes (X) in Poppins font
+    text = text.replace('—', ' ').replace('–', ' ').replace('“', '"').replace('”', '"').replace('’', "'")
+    text = re.sub(r'[^\x00-\x7F]+', ' ', text)  # Strip all other non-ASCII characters
+    text = re.sub(r'\s+', ' ', text).strip()
+    
     words = text.split()
     if not words:
         return []
@@ -64,22 +60,39 @@ def _create_subtitle_clips(text: str, start_time: float, duration: float,
     for i in range(0, len(words), words_per_group):
         groups.append(" ".join(words[i:i + words_per_group]))
 
-    time_per_group = duration / len(groups)
+    # Distribute time smartly using character weights to mimic TTS reading speed & punctuation pauses
+    weights = []
+    for g in groups:
+        w = max(len(g), 2)  # Base weight corresponds to number of characters
+        if g.endswith('.') or g.endswith('!') or g.endswith('?'):
+            w += 15  # Heavy pause for full stops
+        elif g.endswith(','):
+            w += 8   # Medium pause for commas
+        weights.append(w)
+
+    total_weight = sum(weights)
+    if total_weight == 0:
+        return []
+
     clips = []
+    current_time = start_time
 
     for i, group_text in enumerate(groups):
-        group_start = start_time + (i * time_per_group)
+        # Time allocated to this specific block of text
+        group_duration = duration * (weights[i] / total_weight)
 
         # Create localized stylized sub
         text_clip = _create_styled_text_clip(
             group_text,
             font_size=font_size,
-            duration=time_per_group,
-            start=group_start,
+            duration=group_duration,
+            start=current_time,
             y_position=y_position,
         )
         if text_clip:
             clips.append(text_clip)
+            
+        current_time += group_duration
 
     return clips
 
