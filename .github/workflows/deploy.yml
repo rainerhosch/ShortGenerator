@@ -1,46 +1,46 @@
-# name: Deploy to VPS
+name: Deploy to VPS
 
-# on:
-#   push:
-#     branches:
-#       - main
+on:
+  push:
+    branches:
+      - main
 
-# jobs:
-#   deploy:
-#     runs-on: ubuntu-latest
-#     # Hapus baris environment jika Anda menggunakan Repository Secrets
-#     # environment: Production 
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Hapus baris environment jika Anda menggunakan Repository Secrets
+    # environment: Production 
 
-#     steps:
-#       - name: Check Env Availability
-#         run: |
-#           if [ -z "${{ secrets.SSH_HOST }}" ]; then
-#             echo "Error: SSH_HOST secret is empty or not found!"
-#             exit 1
-#           fi
+    steps:
+      - name: Check Env Availability
+        run: |
+          if [ -z "${{ secrets.SSH_HOST }}" ]; then
+            echo "Error: SSH_HOST secret is empty or not found!"
+            exit 1
+          fi
 
-#       - name: Deploy via SSH
-#         uses: appleboy/ssh-action@v1.0.0
-#         with:
-#           host: ${{ secrets.SSH_HOST }}
-#           username: ${{ secrets.SSH_USER }}
-#           key: ${{ secrets.SSH_KEY }}
-#           port: ${{ secrets.SSH_PORT }}
-#           script_stop: true # Stop script jika ada error
-#           script: |
-#             echo "Masuk ke direktori aplikasi..."
-#             cd ShortGenerator/
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script_stop: true # Stop script jika ada error
+          script: |
+            echo "Masuk ke direktori aplikasi..."
+            cd ShortGenerator/
             
-#             echo "⬇️ Mengambil pembaruan terbaru dari GitHub..."
-#             git pull origin main
+            echo "⬇️ Mengambil pembaruan terbaru dari GitHub..."
+            git pull origin main
             
-#             echo "🛑 Menghentikan container yang sedang berjalan..."
-#             docker compose down
+            # echo "🛑 Menghentikan container yang sedang berjalan..."
+            # docker compose down
             
-#             echo "🧹 Membersihkan image & container lama agar tidak memenuhi storage..."
-#             docker system prune -af
+            # echo "🧹 Membersihkan image & container lama agar tidak memenuhi storage..."
+            # docker system prune -af
             
-#             echo "🚀 Merakit ulang (build) dan menjalankan container di latar belakang..."
-#             docker compose up -d --build
+            # echo "🚀 Merakit ulang (build) dan menjalankan container di latar belakang..."
+            # docker compose up -d --build
             
-#             echo "✅ Deploy selesai. Server berhasil diperbarui!"
+            # echo "✅ Deploy selesai. Server berhasil diperbarui!"
