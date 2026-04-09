@@ -71,9 +71,9 @@ def _select_llm_provider() -> tuple[str, str]:
     print()
 
     providers = {
-        "1": "gemini",
-        "2": "openai",
-        "3": "openrouter",
+        "1": "openrouter",
+        "2": "gemini",
+        "3": "openai",
     }
 
     while True:
@@ -104,6 +104,7 @@ def _select_llm_provider() -> tuple[str, str]:
             "gpt-4.1-nano",
         ],
         "openrouter": [
+            "openrouter/free",
             "google/gemma-3-27b-it:free",
             "minimax/minimax-m2.5:free",
             "stepfun/step-3.5-flash:free",

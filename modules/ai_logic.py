@@ -334,10 +334,9 @@ def generate_script(paper_data: dict, provider: str = "gemini",
     # Add specific openrouter fallbacks just in case main openrouter fails due to token limits
     if provider == "openrouter":
         attempts.extend([
-            {"provider": "openrouter", "model": "google/gemma-3-27b-it:free"},
-            {"provider": "openrouter", "model": "meta-llama/llama-3.3-70b-instruct:free"},
-            {"provider": "openrouter", "model": "meta-llama/llama-3.1-8b-instruct:free"},
-            {"provider": "openrouter", "model": "microsoft/phi-3-mini-128k-instruct:free"}
+            {"provider": "openrouter", "model": "openrouter/free"},
+            # {"provider": "openrouter", "model": "google/gemma-3-27b-it:free"},
+            # {"provider": "openrouter", "model": "meta-llama/llama-3.3-70b-instruct:free"}
         ])
 
     script = None
@@ -359,9 +358,17 @@ def generate_script(paper_data: dict, provider: str = "gemini",
             
         except Exception as e:
             last_err = e
+            err_str = str(e).lower()
             logger.warning(f"⚠ Attempt with {attempt_prov} ({attempt_model}) failed: {e}")
-            if "gemini" not in attempt_prov and "openai" not in attempt_prov:
-                # Sleep briefly to avoid immediately triggering a 429 on the next OpenRouter fallback
+            
+            # Adaptive sleep based on error type
+            if "429" in err_str:
+                logger.info(f"⏳ Rate limit (429) hit for {attempt_prov}. Sleeping for 15s to cool down...")
+                time.sleep(15)
+            elif "503" in err_str or "error 503" in err_str or "unavailable" in err_str:
+                logger.info(f"⏳ Server overloaded (503) for {attempt_prov}. Sleeping for 15s to allow recovery...")
+                time.sleep(15)
+            elif "gemini" not in attempt_prov and "openai" not in attempt_prov:
                 time.sleep(3)
             continue
 
